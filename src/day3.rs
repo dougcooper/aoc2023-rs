@@ -7,6 +7,7 @@ pub struct MyMatch {
     pub val: u32,
     pub start: usize,
     pub end: usize,
+    pub is_gear: bool
 }
 
 type Matches = Vec<MyMatch>;
@@ -33,6 +34,7 @@ fn find_matches(line: &str) -> Vec<MyMatch> {
                     val: num,
                     start: m.start(),
                     end: m.end(),
+                    is_gear: false
                 });
             } else {
                 matches.push(MyMatch {
@@ -40,6 +42,7 @@ fn find_matches(line: &str) -> Vec<MyMatch> {
                     val: 0,
                     start: m.start(),
                     end: m.end(),
+                    is_gear: if m.as_str().contains("*"){true}else{false}
                 });
             }
         }
@@ -70,12 +73,22 @@ pub fn solve_part1(input: &Vec<MatchSet>) -> u32 {
     input
         .iter()
         .map(|triple| {
-            process_line(&triple)
+            process_line1(&triple)
         })
         .sum()
 }
 
-fn process_line(set: &MatchSet) -> u32 {
+#[aoc(day3, part2)]
+pub fn solve_part2(input: &Vec<MatchSet>) -> u32 {
+    input
+        .iter()
+        .map(|triple| {
+            process_line2(&triple)
+        })
+        .sum()
+}
+
+fn process_line1(set: &MatchSet) -> u32 {
     let mut numbers = vec![];
     //find numeric matches
     let middles = set.1.as_ref().unwrap();
@@ -122,6 +135,54 @@ fn process_line(set: &MatchSet) -> u32 {
     numbers.iter().sum()
 }
 
+fn process_line2(set: &MatchSet) -> u32 {
+    let mut numbers = vec![];
+    //find numeric matches
+    let middles = set.1.as_ref().unwrap();
+    for (i, middle) in middles.iter().enumerate() {
+        if middle.is_gear {
+            let mut gear_nums = vec![];
+            //check above
+            if let Some(above) = set.0.as_ref(){
+                for above in above {
+                    let range = above.start.checked_sub(1).unwrap_or(above.start)..above.end+1;
+                    if above.is_numeric && range.contains(&middle.start) {
+                        gear_nums.push(above.val);
+                    }
+                }
+            }
+            //check right
+            if let Some(right) = set.1.as_ref().unwrap().get(i + 1) {
+                if right.is_numeric && right.start == middle.end{
+                    gear_nums.push(right.val);
+                }
+            }
+            if let Some(below) = set.2.as_ref(){
+                //check below
+                for below in below {
+                    let range = below.start.checked_sub(1).unwrap_or(below.start)..below.end+1;
+                    if below.is_numeric && range.contains(&middle.start) {
+                        gear_nums.push(below.val);
+                    }
+                }
+            }
+
+            //check left
+            if let Some(i) = i.checked_sub(1) {
+                if let Some(left) = set.1.as_ref().unwrap().get(i) {
+                    if left.is_numeric && left.end == middle.start{
+                        gear_nums.push(left.val);
+                    }
+                }
+            }
+            if gear_nums.len()==2{
+                numbers.push(gear_nums[0]*gear_nums[1]);
+            }
+        }
+    }
+    numbers.iter().sum()
+}
+
 #[cfg(test)]
 mod tests {
     use std::iter::zip;
@@ -158,10 +219,10 @@ mod tests {
     #[case(r"......#...
              617*......
              .....+.58.",617)]
-    fn test_process_line(#[case] input: &str, #[case] result: u32) {
+    fn test_process_line1(#[case] input: &str, #[case] result: u32) {
         let u = input.unindent();
         let m = input_generator(u.as_str());
-        let p = process_line(&m[1]);
+        let p = process_line1(&m[1]);
         assert_eq!(p, result);
     }
 
@@ -182,10 +243,27 @@ mod tests {
         let m = input_generator(u.as_str());
         let results = [467, 0, 35 + 633, 0, 617, 0, 592, 755, 0, 664 + 598];
         for (triple, result) in zip(&m, results) {
-            let p = process_line(&triple);
+            let p = process_line1(&triple);
             assert_eq!(p, result);
         }
 
         assert_eq!(solve_part1(&m), 4361);
+    }
+
+    #[rstest]
+    #[case(r"467..114..
+             ...*......
+             ..35..633.",16345)]
+    #[case(r"......#...
+             617*......
+             .....+.58.",0)]
+    #[case(r"......755.
+             ...$.*....
+             .664.598..",451490)]
+    fn test_process_line2(#[case] input: &str, #[case] result: u32) {
+        let u = input.unindent();
+        let m = input_generator(u.as_str());
+        let p = process_line2(&m[1]);
+        assert_eq!(p, result);
     }
 }
